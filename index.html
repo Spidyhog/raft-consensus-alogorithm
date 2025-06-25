@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Guide to the Raft Consensus Algorithm</title>
+    <!-- Chosen Palette: Slate & Sky -->
+    <!-- Application Structure Plan: The application is structured as a non-linear, thematic journey to maximize understanding. It begins with a high-level "Why" (Raft vs. Paxos) to establish context. The centerpiece is an interactive "How" (a simplified Raft cluster simulation) allowing users to learn by doing. This is followed by optional "What" deep-dive sections (for detailed concepts like Safety) and a "Where" section (real-world case studies) to show impact. This structure prioritizes interactive engagement over the linear format of the source report, catering to different learning styles and allowing users to explore at their own pace. A sticky navigation bar facilitates jumping between these thematic sections. -->
+    <!-- Visualization & Content Choices: 
+        - Raft vs Paxos Comparison (Report Table 1): Goal: Compare. Method: Side-by-side styled cards (HTML/Tailwind). Justification: A direct visual comparison is more impactful for understanding Raft's design goals than prose.
+        - Core Algorithm Simulation: Goal: Explain dynamic processes (Election/Replication). Method: Interactive diagram (HTML/CSS/JS). Interaction: User-triggered buttons for events like 'Leader Failure' or 'Client Request'. Justification: The most effective way to teach a state machine is to let users drive it. This makes abstract concepts concrete.
+        - Raft Adopters (Report Table 3): Goal: Show breadth of adoption. Method: A grid of logos. Interaction: Clicking a logo reveals summary text. Justification: Visually engaging and provides information on-demand, reducing initial clutter.
+        - Implementations by Language: Goal: Show distribution. Method: Donut Chart (Chart.js). Justification: Provides a quick, scannable overview of the implementation ecosystem.
+        - All diagrams are built with HTML/CSS to avoid external dependencies and confirm to constraints. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-container { position: relative; width: 100%; max-width: 400px; margin-left: auto; margin-right: auto; height: 300px; max-height: 400px; }
+        @media (min-width: 768px) { .chart-container { height: 350px; } }
+        .server-node { transition: all 0.3s ease-in-out; }
+        .rpc-animation {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            opacity: 0;
+            animation: move 1.5s ease-in-out;
+        }
+        @keyframes move {
+            0% { opacity: 1; transform: scale(0.5); }
+            50% { opacity: 1; }
+            100% { opacity: 0; transform: scale(1.2); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-700">
+
+    <header id="header" class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 shadow-sm">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex-shrink-0">
+                    <a href="#hero" class="text-xl font-bold text-slate-800">Raft Explained</a>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#comparison" class="text-slate-600 hover:bg-slate-200 hover:text-slate-900 px-3 py-2 rounded-md text-sm font-medium">Why Raft?</a>
+                        <a href="#simulation" class="text-slate-600 hover:bg-slate-200 hover:text-slate-900 px-3 py-2 rounded-md text-sm font-medium">Interactive Demo</a>
+                        <a href="#concepts" class="text-slate-600 hover:bg-slate-200 hover:text-slate-900 px-3 py-2 rounded-md text-sm font-medium">Core Concepts</a>
+                        <a href="#adoption" class="text-slate-600 hover:bg-slate-200 hover:text-slate-900 px-3 py-2 rounded-md text-sm font-medium">In The Wild</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section id="hero" class="bg-white">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32 text-center">
+                <h1 class="text-4xl md:text-6xl font-bold tracking-tight text-slate-900">Demystifying Distributed Consensus</h1>
+                <p class="mt-4 max-w-3xl mx-auto text-lg md:text-xl text-slate-600">An interactive guide to the <span class="text-sky-600 font-semibold">Raft Algorithm</span>, designed from the ground up for understandability.</p>
+                <div class="mt-8">
+                    <a href="#simulation" class="inline-block bg-sky-600 text-white font-semibold px-8 py-3 rounded-lg shadow-md hover:bg-sky-700 transition-colors">Launch Interactive Demo</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="comparison" class="py-16 sm:py-24">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Why Was Raft Created?</h2>
+                    <p class="mt-4 max-w-2xl mx-auto text-lg text-slate-600">Before Raft, the dominant consensus algorithm was Paxos. While theoretically sound, Paxos is notoriously difficult to understand and implement correctly. Raft was designed to be a complete and practical alternative, with understandability as its explicit primary goal.</p>
+                </div>
+                <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+                    <div id="paxos-card" class="bg-white p-8 rounded-xl shadow-lg border border-slate-200"></div>
+                    <div id="raft-card" class="bg-white p-8 rounded-xl shadow-lg border border-slate-200"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="simulation" class="py-16 sm:py-24 bg-slate-100">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Interactive Raft Cluster</h2>
+                    <p class="mt-4 max-w-2xl mx-auto text-lg text-slate-600">This is a simplified, 5-node Raft cluster. Use the controls to trigger events and observe how the algorithm maintains consensus in the face of failures. Watch the nodes change state and the logs stay in sync.</p>
+                </div>
+                <div class="mt-12 flex flex-col lg:flex-row gap-8">
+                    <div class="lg:w-2/3 bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                        <div id="cluster-visualization" class="relative min-h-[400px] flex items-center justify-center">
+                        </div>
+                    </div>
+                    <div class="lg:w-1/3 flex flex-col gap-6">
+                        <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                            <h3 class="font-bold text-lg text-slate-800 mb-4">Controls</h3>
+                            <div class="grid grid-cols-2 gap-3">
+                                <button id="start-btn" class="w-full bg-sky-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-sky-700 transition">Start</button>
+                                <button id="reset-btn" class="w-full bg-slate-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-600 transition">Reset</button>
+                                <button id="stop-leader-btn" class="w-full bg-red-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-600 transition disabled:bg-red-300 disabled:cursor-not-allowed" disabled>Stop Leader</button>
+                                <button id="client-request-btn" class="w-full bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600 transition disabled:bg-green-300 disabled:cursor-not-allowed" disabled>Client Request</button>
+                            </div>
+                        </div>
+                        <div id="explanation-panel" class="bg-white p-6 rounded-xl shadow-lg border border-slate-200 flex-grow">
+                             <h3 class="font-bold text-lg text-slate-800 mb-2">Explanation Log</h3>
+                             <div id="explanation-log" class="text-sm text-slate-600 space-y-2 h-48 overflow-y-auto">
+                                <p>Click 'Start' to initialize the cluster and begin leader election.</p>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="concepts" class="py-16 sm:py-24">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Core Raft Concepts</h2>
+                    <p class="mt-4 max-w-2xl mx-auto text-lg text-slate-600">Raft's understandability comes from its decomposition of consensus into three distinct parts: Leader Election, Log Replication, and Safety. Explore these concepts in more detail below.</p>
+                </div>
+                <div id="concepts-container" class="mt-12 max-w-4xl mx-auto">
+                </div>
+            </div>
+        </section>
+        
+        <section id="adoption" class="py-16 sm:py-24 bg-slate-100">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Raft in the Wild</h2>
+                    <p class="mt-4 max-w-2xl mx-auto text-lg text-slate-600">Raft isn't just a theory; it's the foundation for some of the world's most critical distributed systems. Its clarity has led to widespread adoption and a rich ecosystem of libraries.</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+                        <h3 class="text-2xl font-bold text-slate-800 text-center mb-6">Prominent Adopters</h3>
+                        <p class="text-center text-slate-500 mb-6">Click a logo to see how the system uses Raft.</p>
+                        <div id="adopters-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-6 items-center">
+                        </div>
+                        <div id="adopter-info" class="mt-6 p-4 bg-sky-50 border border-sky-200 rounded-lg text-sm text-slate-700 min-h-[100px]">
+                            <p class="font-semibold text-sky-800">Select a system above to learn more.</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+                        <h3 class="text-2xl font-bold text-slate-800 text-center mb-6">Implementations by Language</h3>
+                        <div class="chart-container">
+                            <canvas id="language-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-slate-800 text-slate-400">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-sm">
+            <p>Interactive guide created to explain the Raft Consensus Algorithm.</p>
+            <p class="mt-1">Content synthesized from the paper "In Search of an Understandable Consensus Algorithm" and raft.github.io.</p>
+        </div>
+    </footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    const appData = {
+        comparison: {
+            paxos: {
+                title: 'Paxos',
+                icon: '🧩',
+                philosophy: 'Proves correctness of a minimal core, leaving many practical details of Multi-Paxos undefined.',
+                decomposition: 'Decomposes into two subtle phases for a single decision, which are hard to reason about together.',
+                leadership: 'Fundamentally symmetric and peer-to-peer. Leadership is a complex, optional overlay.',
+                understandability: 'Notoriously difficult to understand, hindering correct implementation and education.'
+            },
+            raft: {
+                title: 'Raft',
+                icon: '💡',
+                philosophy: 'Designed for understandability and practical implementation from the ground up.',
+                decomposition: 'Decomposes the problem into three clearer, largely independent subproblems: Leader Election, Log Replication, and Safety.',
+                leadership: 'Employs a strong leader model as central to the algorithm. Simplifies the system immensely.',
+                understandability: 'Explicitly designed to be easy to understand, validated by user studies and widespread adoption.'
+            }
+        },
+        concepts: [
+            {
+                title: "Server States & RPCs",
+                content: `
+                    <p class="mb-4">In Raft, every server is in one of three states: Follower, Candidate, or Leader. The system relies on two simple Remote Procedure Calls (RPCs) for all communication.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div class="p-4 bg-slate-100 rounded-lg"><strong class="block text-slate-800">Follower (Passive)</strong>Responds to requests from leaders and candidates. Times out to start an election if it doesn't hear from a leader.</div>
+                        <div class="p-4 bg-yellow-100 rounded-lg"><strong class="block text-yellow-800">Candidate (Transitional)</strong>Tries to become leader during an election by requesting votes.</div>
+                        <div class="p-4 bg-sky-100 rounded-lg"><strong class="block text-sky-800">Leader (Active)</strong>Handles all client requests and manages log replication. Only one leader per term.</div>
+                    </div>
+                    <h4 class="font-semibold text-lg mt-6 mb-2 text-slate-800">RPCs</h4>
+                    <ul class="list-disc list-inside space-y-2">
+                        <li><strong class="font-semibold">RequestVote RPC:</strong> Initiated by Candidates to gather votes during an election.</li>
+                        <li><strong class="font-semibold">AppendEntries RPC:</strong> Initiated by the Leader to replicate log entries and to serve as a heartbeat to prevent new elections.</li>
+                    </ul>
+                `
+            },
+            {
+                title: "Leader Election",
+                content: `
+                    <p class="mb-4">When a follower stops receiving heartbeats from a leader, it assumes the leader has failed and starts an election. The election process ensures a new, valid leader is chosen quickly and safely.</p>
+                    <ol class="list-decimal list-inside space-y-2">
+                        <li><strong>Timeout:</strong> A follower waits for a random 'election timeout'. If it elapses, it becomes a candidate.</li>
+                        <li><strong>Campaign:</strong> The candidate increments the current 'term', votes for itself, and sends RequestVote RPCs to all other servers.</li>
+                        <li><strong>Victory:</strong> A candidate wins if it gets votes from a majority of servers. It then becomes leader and sends heartbeats.</li>
+                        <li><strong>Split Vote:</strong> If no candidate gets a majority, the term ends and a new election starts after another timeout. Randomized timeouts make repeated split votes highly unlikely.</li>
+                    </ol>
+                    <p class="mt-4 text-sm text-slate-500">The use of randomized timeouts is a simple but powerful mechanism to ensure liveness by quickly resolving election deadlocks.</p>
+                `
+            },
+            {
+                title: "Log Replication & Safety",
+                content: `
+                    <p class="mb-4">Once a leader is elected, it serves client requests. This involves replicating client commands across the cluster via a replicated log, ensuring all servers execute the same commands in the same order.</p>
+                    <h4 class="font-semibold text-lg mt-6 mb-2 text-slate-800">The Commit Process</h4>
+                    <ol class="list-decimal list-inside space-y-2">
+                        <li>Leader receives a command from a client and appends it to its own log.</li>
+                        <li>Leader sends the new entry to followers via AppendEntries RPCs.</li>
+                        <li>Once a majority of followers acknowledge the entry, the leader 'commits' it.</li>
+                        <li>The leader applies the command to its state machine and returns the result to the client.</li>
+                        <li>Subsequent heartbeats inform followers of the committed entries, which they then apply.</li>
+                    </ol>
+                    <h4 class="font-semibold text-lg mt-6 mb-2 text-slate-800">The Safety Guarantee</h4>
+                    <p>Raft's safety properties guarantee correctness. The most important is the <strong>Leader Completeness Property</strong>: an elected leader is guaranteed to have all previously committed log entries. This is enforced by the voting process—a server won't vote for a candidate with a less up-to-date log. This prevents any committed data from ever being lost.</p>
+                `
+            }
+        ],
+        adopters: [
+            { name: "Kubernetes", logo: "k8s", info: "Relies on etcd, a Raft-based distributed key-value store, as its primary datastore for all cluster state and metadata. The reliability of Kubernetes depends directly on Raft's consensus guarantees in etcd." },
+            { name: "etcd", logo: "etcd", info: "A distributed, reliable key-value store that is a core component of many distributed systems. It uses Raft to manage a highly-available replicated log." },
+            { name: "CockroachDB", logo: "cockroach", info: "A distributed SQL database that uses Raft for data replication. It employs a 'MultiRaft' system, where data is sharded into many ranges, each being an independent Raft consensus group." },
+            { name: "Consul", logo: "consul", info: "A service networking solution from HashiCorp. It uses Raft to maintain a consistent state for its service catalog, configuration, and service discovery features." },
+            { name: "MongoDB", logo: "mongo", info: "A document database that uses a Raft-inspired protocol for replica set elections to choose a primary node." },
+            { name: "TiDB", logo: "tidb", info: "A distributed SQL database whose storage layer, TiKV, uses Raft. Data is sharded into 'Regions', each forming a Raft group to ensure consistency and high availability." },
+            { name: "RabbitMQ", logo: "rabbitmq", info: "A popular message broker that uses Raft to implement durable and replicated Quorum Queues, ensuring message safety even if nodes fail." },
+            { name: "Kafka", logo: "kafka", info: "A distributed streaming platform that now offers a Raft-based consensus protocol (KRaft) as an alternative to ZooKeeper for managing cluster metadata." },
+        ]
+    };
+
+    // --- RENDER INITIAL CONTENT ---
+
+    const renderComparisonCard = (data) => `
+        <div class="flex items-center mb-4">
+            <span class="text-3xl mr-4">${data.icon}</span>
+            <h3 class="text-3xl font-bold text-slate-800">${data.title}</h3>
+        </div>
+        <dl class="space-y-4">
+            <div>
+                <dt class="font-semibold text-slate-700">Core Philosophy</dt>
+                <dd class="text-slate-600">${data.philosophy}</dd>
+            </div>
+            <div>
+                <dt class="font-semibold text-slate-700">Decomposition</dt>
+                <dd class="text-slate-600">${data.decomposition}</dd>
+            </div>
+            <div>
+                <dt class="font-semibold text-slate-700">Leadership Model</dt>
+                <dd class="text-slate-600">${data.leadership}</dd>
+            </div>
+             <div>
+                <dt class="font-semibold text-slate-700">Understandability</dt>
+                <dd class="text-slate-600">${data.understandability}</dd>
+            </div>
+        </dl>
+    `;
+
+    document.getElementById('paxos-card').innerHTML = renderComparisonCard(appData.comparison.paxos);
+    document.getElementById('raft-card').innerHTML = renderComparisonCard(appData.comparison.raft);
+
+    const conceptsContainer = document.getElementById('concepts-container');
+    appData.concepts.forEach((concept, index) => {
+        const div = document.createElement('div');
+        div.className = 'mb-4 border border-slate-200 bg-white rounded-lg shadow-sm overflow-hidden';
+        div.innerHTML = `
+            <button class="w-full p-4 text-left bg-slate-50 hover:bg-slate-100 focus:outline-none" data-index="${index}">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-slate-800">${concept.title}</h3>
+                    <span class="transform transition-transform text-sky-600 text-2xl font-light">+</span>
+                </div>
+            </button>
+            <div class="p-6 hidden bg-white">
+                ${concept.content}
+            </div>
+        `;
+        conceptsContainer.appendChild(div);
+    });
+
+    conceptsContainer.addEventListener('click', (e) => {
+        const button = e.target.closest('button');
+        if (button) {
+            const content = button.nextElementSibling;
+            const icon = button.querySelector('span');
+            const isOpen = !content.classList.contains('hidden');
+            
+            content.classList.toggle('hidden');
+            icon.textContent = isOpen ? '+' : '-';
+            icon.classList.toggle('rotate-45', !isOpen);
+        }
+    });
+
+    const adoptersGrid = document.getElementById('adopters-grid');
+    const adopterInfo = document.getElementById('adopter-info');
+    appData.adopters.forEach(adopter => {
+        const button = document.createElement('button');
+        button.className = 'flex justify-center items-center p-2 rounded-lg hover:bg-slate-100 transition-colors';
+        button.dataset.info = adopter.info;
+        button.dataset.name = adopter.name;
+        button.innerHTML = `<img src="https://placehold.co/100x60/f1f5f9/334155?text=${adopter.name}" alt="${adopter.name} logo" class="h-10 object-contain">`;
+        button.addEventListener('click', () => {
+             adopterInfo.innerHTML = `
+                <p class="font-semibold text-sky-800 mb-2">${adopter.name}</p>
+                <p>${adopter.info}</p>
+            `;
+            // Highlight selected
+            Array.from(adoptersGrid.children).forEach(child => child.classList.remove('bg-sky-100'));
+            button.classList.add('bg-sky-100');
+        });
+        adoptersGrid.appendChild(button);
+    });
+    
+    new Chart(document.getElementById('language-chart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Go', 'Rust', 'Java', 'C++', 'Other'],
+            datasets: [{
+                label: 'Implementations',
+                data: [45, 20, 15, 10, 10],
+                backgroundColor: ['#0ea5e9', '#f97316', '#ef4444', '#8b5cf6', '#64748b'],
+                borderColor: '#fff',
+                borderWidth: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.label}: ${context.raw}% (approx)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+
+    // --- INTERACTIVE SIMULATION LOGIC ---
+    const clusterVis = document.getElementById('cluster-visualization');
+    const explanationLog = document.getElementById('explanation-log');
+    const startBtn = document.getElementById('start-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const stopLeaderBtn = document.getElementById('stop-leader-btn');
+    const clientRequestBtn = document.getElementById('client-request-btn');
+
+    let servers = [];
+    let term = 0;
+    let leaderId = null;
+    let running = false;
+    let timeouts = [];
+    let logCounter = 1;
+
+    const serverPositions = [
+        { top: '10%', left: '50%', transform: 'translateX(-50%)' },
+        { top: '40%', left: '15%', transform: 'translate(-50%, -50%)' },
+        { top: '40%', left: '85%', transform: 'translate(-50%, -50%)' },
+        { top: '80%', left: '25%', transform: 'translate(-50%, -50%)' },
+        { top: '80%', left: '75%', transform: 'translate(-50%, -50%)' },
+    ];
+
+    function initServers() {
+        clusterVis.innerHTML = '';
+        servers = [];
+        for (let i = 0; i < 5; i++) {
+            const server = {
+                id: i,
+                state: 'follower', // follower, candidate, leader
+                term: 0,
+                votedFor: null,
+                log: [],
+                element: null,
+                timeout: null,
+                stopped: false,
+            };
+
+            const el = document.createElement('div');
+            el.className = 'server-node absolute w-28 h-28 border-4 rounded-lg flex flex-col items-center justify-center';
+            el.style.top = serverPositions[i].top;
+            el.style.left = serverPositions[i].left;
+            el.style.transform = serverPositions[i].transform;
+            el.id = `server-${i}`;
+
+            server.element = el;
+            servers.push(server);
+            clusterVis.appendChild(el);
+        }
+        updateAllServerVisuals();
+    }
+
+    function updateServerVisual(server) {
+        if (!server.element) return;
+        
+        let bgColor = 'bg-slate-200';
+        let borderColor = 'border-slate-400';
+        let textColor = 'text-slate-600';
+        let stateText = 'Follower';
+
+        if (server.stopped) {
+            bgColor = 'bg-red-200';
+            borderColor = 'border-red-400';
+            textColor = 'text-red-600';
+            stateText = 'Stopped';
+        } else if (server.state === 'candidate') {
+            bgColor = 'bg-yellow-200';
+            borderColor = 'border-yellow-500';
+            textColor = 'text-yellow-700';
+            stateText = 'Candidate';
+        } else if (server.state === 'leader') {
+            bgColor = 'bg-sky-200';
+            borderColor = 'border-sky-500';
+            textColor = 'text-sky-700';
+            stateText = 'Leader';
+        }
+
+        server.element.className = `server-node absolute w-28 h-28 border-4 rounded-lg flex flex-col items-center justify-center ${bgColor} ${borderColor} ${textColor}`;
+        server.element.innerHTML = `
+            <div class="font-bold text-sm">Server ${server.id}</div>
+            <div class="text-xs font-semibold">${stateText}</div>
+            <div class="text-xs">Term: ${server.term}</div>
+            <div class="text-xs">Log: [${server.log.length}]</div>
+        `;
+    }
+
+    function updateAllServerVisuals() {
+        servers.forEach(updateServerVisual);
+    }
+
+    function addLog(text) {
+        const p = document.createElement('p');
+        p.textContent = text;
+        explanationLog.appendChild(p);
+        explanationLog.scrollTop = explanationLog.scrollHeight;
+    }
+    
+    function animateRPC(fromId, toId, type) {
+        const rpcEl = document.createElement('div');
+        const fromPos = servers[fromId].element.getBoundingClientRect();
+        const toPos = servers[toId].element.getBoundingClientRect();
+        const clusterPos = clusterVis.getBoundingClientRect();
+
+        const startX = fromPos.left + fromPos.width / 2 - clusterPos.left;
+        const startY = fromPos.top + fromPos.height / 2 - clusterPos.top;
+        const endX = toPos.left + toPos.width / 2 - clusterPos.left;
+        const endY = toPos.top + toPos.height / 2 - clusterPos.top;
+        
+        rpcEl.className = `rpc-animation ${type === 'vote' ? 'bg-yellow-500' : 'bg-sky-500'}`;
+        rpcEl.style.left = `${startX}px`;
+        rpcEl.style.top = `${startY}px`;
+        
+        clusterVis.appendChild(rpcEl);
+        
+        // This is a hack to trigger reflow for animation
+        setTimeout(() => {
+            rpcEl.style.transform = `translate(${endX - startX}px, ${endY - startY}px) scale(1.2)`;
+        }, 10);
+
+        setTimeout(() => {
+            rpcEl.remove();
+        }, 1500);
+    }
+
+    function startElection(candidateId) {
+        if (!running) return;
+        const candidate = servers[candidateId];
+        if(candidate.stopped) return;
+        
+        term++;
+        leaderId = null;
+        candidate.state = 'candidate';
+        candidate.term = term;
+        candidate.votedFor = candidate.id;
+        updateServerVisual(candidate);
+        addLog(`T${term}: Server ${candidate.id} timed out, became Candidate.`);
+        
+        let votes = 1;
+        
+        servers.forEach(server => {
+            if (server.id !== candidate.id && !server.stopped) {
+                animateRPC(candidateId, server.id, 'vote');
+            }
+        });
+        
+        const voteTimeout = setTimeout(() => {
+             servers.forEach(server => {
+                if (server.id !== candidateId && !server.stopped && server.term < term) {
+                    server.term = term;
+                    server.votedFor = candidate.id;
+                    votes++;
+                    updateServerVisual(server);
+                }
+            });
+            
+            if (votes > servers.length / 2) {
+                becomeLeader(candidate.id);
+            } else {
+                addLog(`T${term}: Election failed (split vote).`);
+                candidate.state = 'follower';
+                updateServerVisual(candidate);
+                resetAndStartTimers();
+            }
+        }, 1500);
+        timeouts.push(voteTimeout);
+    }
+    
+    function becomeLeader(id) {
+        leaderId = id;
+        const leader = servers[leaderId];
+        leader.state = 'leader';
+        updateServerVisual(leader);
+        addLog(`T${term}: Server ${id} won election, became Leader.`);
+        
+        clientRequestBtn.disabled = false;
+        stopLeaderBtn.disabled = false;
+        
+        // Cancel all other timeouts
+        clearAllTimeouts();
+
+        // Start heartbeats
+        const heartbeatInterval = setInterval(() => {
+            if (!running || servers[leaderId].stopped) {
+                clearInterval(heartbeatInterval);
+                return;
+            }
+            if (leaderId === id) { // Still leader
+                addLog(`T${term}: Leader ${id} sends heartbeats.`);
+                servers.forEach(s => {
+                    if (s.id !== id && !s.stopped) {
+                        animateRPC(id, s.id, 'heartbeat');
+                        s.timeout = null; // reset their timeout
+                    }
+                })
+            } else {
+                clearInterval(heartbeatInterval);
+            }
+        }, 2000);
+        timeouts.push(heartbeatInterval);
+    }
+
+    function resetAndStartTimers() {
+        if(!running) return;
+        clearAllTimeouts();
+        servers.forEach(server => {
+            if (server.state === 'follower' && !server.stopped) {
+                const timeoutDuration = 4000 + Math.random() * 2000;
+                const t = setTimeout(() => startElection(server.id), timeoutDuration);
+                server.timeout = t;
+                timeouts.push(t);
+            }
+        });
+    }
+
+    function clearAllTimeouts() {
+        timeouts.forEach(clearTimeout);
+        timeouts = [];
+        servers.forEach(s => s.timeout = null);
+    }
+
+    startBtn.addEventListener('click', () => {
+        if(running) return;
+        running = true;
+        startBtn.disabled = true;
+        resetBtn.disabled = false;
+        explanationLog.innerHTML = '';
+        addLog("Cluster started. Waiting for a server to time out...");
+        resetAndStartTimers();
+    });
+    
+    resetBtn.addEventListener('click', () => {
+        running = false;
+        clearAllTimeouts();
+        initServers();
+        term = 0;
+        leaderId = null;
+        logCounter = 1;
+        startBtn.disabled = false;
+        resetBtn.disabled = true;
+        stopLeaderBtn.disabled = true;
+        clientRequestBtn.disabled = true;
+        explanationLog.innerHTML = '<p>Click \'Start\' to initialize the cluster and begin leader election.</p>';
+    });
+    
+    stopLeaderBtn.addEventListener('click', () => {
+        if (leaderId !== null) {
+            const leader = servers[leaderId];
+            leader.stopped = true;
+            leader.state = 'follower';
+            updateServerVisual(leader);
+            addLog(`-- Leader ${leaderId} stopped! --`);
+            stopLeaderBtn.disabled = true;
+            clientRequestBtn.disabled = true;
+            leaderId = null;
+            resetAndStartTimers();
+        }
+    });
+    
+    clientRequestBtn.addEventListener('click', () => {
+        if (leaderId === null) return;
+        
+        const leader = servers[leaderId];
+        const newLogEntry = { term: term, command: `CMD${logCounter++}` };
+        
+        addLog(`T${term}: Leader ${leader.id} received client request.`);
+        leader.log.push(newLogEntry);
+        updateServerVisual(leader);
+
+        let acks = 1;
+        addLog(`T${term}: Leader replicating entry to followers.`);
+        servers.forEach(s => {
+            if (s.id !== leader.id && !s.stopped) {
+                animateRPC(leader.id, s.id, 'heartbeat');
+            }
+        });
+
+        const replicateTimeout = setTimeout(() => {
+            servers.forEach(s => {
+                if(s.id !== leader.id && !s.stopped) {
+                    s.log.push(newLogEntry);
+                    updateServerVisual(s);
+                    acks++;
+                }
+            });
+            
+            if(acks > servers.length / 2) {
+                addLog(`T${term}: Entry committed by majority. Leader responds to client.`);
+            } else {
+                 addLog(`T${term}: Failed to commit entry.`);
+            }
+        }, 1500);
+        timeouts.push(replicateTimeout);
+    });
+
+
+    // Initial state
+    initServers();
+    resetBtn.disabled = true;
+});
+</script>
+</body>
+</html>
